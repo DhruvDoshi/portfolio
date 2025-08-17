@@ -1,4 +1,5 @@
 // Exchange Rate Service - Fetches real-time and historical exchange rates
+import {NextResponse} from "next/server";
 
 export interface ExchangeRate {
   from: string;
@@ -12,6 +13,9 @@ export class ExchangeRateService {
   private static cache = new Map<string, ExchangeRate>();
   private static cacheExpiry = 5 * 60 * 1000; // 5 minutes cache
 
+  // TODO: Replace with your actual API key from freecurrencyapi.com
+  private static apiKey = process.env.FREECURRENCYAPI_KEY || 'YOUR_API_KEY';
+
   /**
    * Get current exchange rate between two currencies
    */
@@ -20,23 +24,14 @@ export class ExchangeRateService {
 
     const cacheKey = `${fromCurrency}_${toCurrency}_current`;
     const cached = this.cache.get(cacheKey);
-    
+
     if (cached && (Date.now() - cached.timestamp) < this.cacheExpiry) {
       return cached.rate;
     }
 
     try {
-      // Try multiple APIs for better reliability
-      let rate = await this.fetchFromExchangeRateAPI(fromCurrency, toCurrency);
-      
-      if (!rate) {
-        rate = await this.fetchFromFixer(fromCurrency, toCurrency);
-      }
-      
-      if (!rate) {
-        rate = await this.fetchFromExchangeRateHost(fromCurrency, toCurrency);
-      }
-      
+      let rate = await this.fetchFromFreeCurrencyApi(fromCurrency, toCurrency);
+
       if (!rate) {
         console.warn(`Failed to fetch exchange rate for ${fromCurrency} to ${toCurrency}, using fallback`);
         return this.getFallbackRate(fromCurrency, toCurrency);
@@ -67,19 +62,14 @@ export class ExchangeRateService {
     const dateStr = date.toISOString().split('T')[0];
     const cacheKey = `${fromCurrency}_${toCurrency}_${dateStr}`;
     const cached = this.cache.get(cacheKey);
-    
+
     if (cached) {
       return cached.rate;
     }
 
     try {
-      // Try multiple APIs for historical data
-      let rate = await this.fetchHistoricalFromExchangeRateAPI(fromCurrency, toCurrency, dateStr);
-      
-      if (!rate) {
-        rate = await this.fetchHistoricalFromFixer(fromCurrency, toCurrency, dateStr);
-      }
-      
+      let rate = await this.fetchHistoricalFromFreeCurrencyApi(fromCurrency, toCurrency, dateStr);
+
       if (!rate) {
         console.warn(`Failed to fetch historical rate for ${fromCurrency} to ${toCurrency} on ${dateStr}, using current rate`);
         return await this.getCurrentRate(fromCurrency, toCurrency);
@@ -119,59 +109,42 @@ export class ExchangeRateService {
 
   // API Implementations
 
-  private static async fetchFromExchangeRateAPI(from: string, to: string): Promise<number | null> {
+  private static async fetchFromFreeCurrencyApi(from: string, to: string): Promise<number | null> {
+    if (this.apiKey === 'YOUR_API_KEY') {
+        console.error('FreeCurrencyAPI key is not set. Please add your API key to .env.local as FREECURRENCYAPI_KEY.');
+        return null;
+    }
     try {
-      const response = await fetch(`https://api.exchangerate-api.com/v4/latest/${from}`);
+      const response = await fetch(`https://api.freecurrencyapi.com/v1/latest?apikey=${this.apiKey}&base_currency=${from}&currencies=${to}`);
+      if (!response.ok) {
+        throw new Error(`FreeCurrencyAPI request failed with status ${response.status}`);
+      }
       const data = await response.json();
-      return data.rates[to] || null;
+      return data.data[to] || null;
     } catch (error) {
-      console.error('ExchangeRate-API error:', error);
+      console.error('FreeCurrencyAPI error:', error);
       return null;
     }
   }
 
-  private static async fetchHistoricalFromExchangeRateAPI(from: string, to: string, date: string): Promise<number | null> {
+  private static async fetchHistoricalFromFreeCurrencyApi(from: string, to: string, date: string): Promise<number | null> {
+      if (this.apiKey === 'YOUR_API_KEY') {
+          console.error('FreeCurrencyAPI key is not set. Please add your API key to .env.local as FREECURRENCYAPI_KEY.');
+          return null;
+      }
     try {
-      const response = await fetch(`https://api.exchangerate-api.com/v4/history/${from}/${date}`);
+      const response = await fetch(`https://api.freecurrencyapi.com/v1/historical?apikey=${this.apiKey}&date=${date}&base_currency=${from}&currencies=${to}`);
+        if (!response.ok) {
+            throw new Error(`FreeCurrencyAPI historical request failed with status ${response.status}`);
+        }
       const data = await response.json();
-      return data.rates[to] || null;
-    } catch (error) {
-      console.error('ExchangeRate-API historical error:', error);
+        // The historical API returns data nested under the date key
+        if (data.data && data.data[date]) {
+            return data.data[date][to] || null;
+        }
       return null;
-    }
-  }
-
-  private static async fetchFromFixer(from: string, to: string): Promise<number | null> {
-    try {
-      // Note: Fixer.io requires API key for production use
-      // This is a fallback that might not work without API key
-      const response = await fetch(`https://api.fixer.io/latest?base=${from}&symbols=${to}`);
-      const data = await response.json();
-      return data.rates[to] || null;
     } catch (error) {
-      console.error('Fixer.io error:', error);
-      return null;
-    }
-  }
-
-  private static async fetchHistoricalFromFixer(from: string, to: string, date: string): Promise<number | null> {
-    try {
-      const response = await fetch(`https://api.fixer.io/${date}?base=${from}&symbols=${to}`);
-      const data = await response.json();
-      return data.rates[to] || null;
-    } catch (error) {
-      console.error('Fixer.io historical error:', error);
-      return null;
-    }
-  }
-
-  private static async fetchFromExchangeRateHost(from: string, to: string): Promise<number | null> {
-    try {
-      const response = await fetch(`https://api.exchangerate.host/convert?from=${from}&to=${to}&amount=1`);
-      const data = await response.json();
-      return data.result || null;
-    } catch (error) {
-      console.error('ExchangeRate.host error:', error);
+      console.error('FreeCurrencyAPI historical error:', error);
       return null;
     }
   }
@@ -184,30 +157,30 @@ export class ExchangeRateService {
       'USD': {
         'CAD': 1.35,
         'INR': 83.0,
-        'EUR': 0.85,
-        'GBP': 0.73,
-        'JPY': 110.0
+        'EUR': 0.92,
+        'GBP': 0.79,
+        'JPY': 157.0
       },
       'CAD': {
         'USD': 0.74,
         'INR': 61.5,
-        'EUR': 0.63,
-        'GBP': 0.54,
-        'JPY': 81.5
+        'EUR': 0.68,
+        'GBP': 0.58,
+        'JPY': 116.0
       },
       'INR': {
         'USD': 0.012,
         'CAD': 0.016,
-        'EUR': 0.010,
-        'GBP': 0.009,
-        'JPY': 1.33
+        'EUR': 0.011,
+        'GBP': 0.0095,
+        'JPY': 1.89
       },
       'EUR': {
-        'USD': 1.18,
-        'CAD': 1.59,
-        'INR': 97.6,
-        'GBP': 0.86,
-        'JPY': 129.4
+        'USD': 1.08,
+        'CAD': 1.47,
+        'INR': 90.0,
+        'GBP': 0.85,
+        'JPY': 170.0
       }
     };
 
@@ -215,10 +188,11 @@ export class ExchangeRateService {
   }
 
   /**
-   * Get supported currencies
+   * Get supported currencies from freecurrencyapi.com
    */
   static getSupportedCurrencies(): string[] {
-    return ['USD', 'CAD', 'INR', 'EUR', 'GBP', 'JPY'];
+    // A subset of commonly used currencies supported by freecurrencyapi.com
+    return ['USD', 'CAD', 'INR', 'EUR', 'GBP', 'JPY', 'AUD', 'CHF', 'CNY', 'HKD', 'NZD'];
   }
 
   /**

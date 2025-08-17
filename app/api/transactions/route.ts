@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDb, Transaction } from '../../../lib/database';
 import { verifyAuth } from '../../../lib/auth';
 import { ObjectId } from 'mongodb';
+import { ExchangeRateService } from '../../../lib/exchangeRateService';
 
 // GET /api/transactions - Get transactions for a portfolio
 export async function GET(request: NextRequest) {
@@ -43,10 +44,10 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { portfolioId, stockSymbol, type, shares, price, amount, date, market } = body;
+    const { portfolioId, stockSymbol, type, shares, price, amount, date, market, currency } = body;
 
     // Validate required fields
-    if (!portfolioId || !stockSymbol || !type || !shares || !price || !amount || !date || !market) {
+    if (!portfolioId || !stockSymbol || !type || !shares || !price || !amount || !date || !market || !currency) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
 
@@ -70,6 +71,7 @@ export async function POST(request: NextRequest) {
       shares: parseFloat(shares),
       price: parseFloat(price),
       amount: parseFloat(amount),
+      currency,
       date: new Date(date),
       market,
       createdAt: new Date()
@@ -90,9 +92,20 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function updatePortfolioStocks(db: any, portfolioId: string, transaction: Omit<Transaction, '_id'>) {
+async function updatePortfolioStocks(db: any, portfolioId: string, transaction: Omit<Transaction, '_id'> & { currency: string }) {
   const portfolio = await db.collection('portfolios').findOne({ _id: new ObjectId(portfolioId) });
   if (!portfolio) return;
+
+  // Convert transaction amount to portfolio's base currency for consistent avgPrice calculation
+  let transactionAmountInPortfolioCurrency = transaction.amount;
+  if (transaction.currency !== portfolio.currency) {
+    transactionAmountInPortfolioCurrency = await ExchangeRateService.convertCurrencyHistorical(
+      transaction.amount,
+      transaction.currency,
+      portfolio.currency,
+      transaction.date
+    );
+  }
 
   const stocks = portfolio.stocks || [];
   const stockIndex = stocks.findIndex(
@@ -104,8 +117,8 @@ async function updatePortfolioStocks(db: any, portfolioId: string, transaction: 
       // Update existing stock with weighted average
       const existingStock = stocks[stockIndex];
       const totalShares = existingStock.shares + transaction.shares;
-      const totalValue = (existingStock.shares * existingStock.avgPrice) + transaction.amount;
-      
+      const totalValue = (existingStock.shares * existingStock.avgPrice) + transactionAmountInPortfolioCurrency;
+
       stocks[stockIndex] = {
         ...existingStock,
         shares: totalShares,
@@ -113,10 +126,11 @@ async function updatePortfolioStocks(db: any, portfolioId: string, transaction: 
       };
     } else {
       // Add new stock
+      const priceInPortfolioCurrency = transactionAmountInPortfolioCurrency / transaction.shares;
       stocks.push({
         symbol: transaction.stockSymbol,
         shares: transaction.shares,
-        avgPrice: transaction.price,
+        avgPrice: priceInPortfolioCurrency,
         market: transaction.market
       });
     }
@@ -124,7 +138,7 @@ async function updatePortfolioStocks(db: any, portfolioId: string, transaction: 
     // Reduce shares for sell transaction
     const existingStock = stocks[stockIndex];
     const newShares = existingStock.shares - transaction.shares;
-    
+
     if (newShares <= 0) {
       // Remove stock if all shares sold
       stocks.splice(stockIndex, 1);

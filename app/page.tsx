@@ -12,7 +12,7 @@ interface Portfolio {
   _id?: string;
   userId: string;
   name: string;
-  currency: 'USD' | 'CAD' | 'INR';
+  currency: 'USD' | 'CAD' | 'INR' | 'EUR' | 'GBP' | 'JPY' | 'AUD' | 'CHF' | 'CNY' | 'HKD' | 'NZD';
   stocks: {
     symbol: string;
     shares: number;
@@ -34,6 +34,7 @@ interface Transaction {
   shares: number;
   price: number;
   amount: number;
+  currency: 'USD' | 'CAD' | 'INR' | 'EUR' | 'GBP' | 'JPY' | 'AUD' | 'CHF' | 'CNY' | 'HKD' | 'NZD';
   date: Date;
   market: 'US' | 'CA' | 'IN';
   createdAt: Date;
@@ -75,10 +76,10 @@ export default function Home() {
       }
     });
     
-    // Load current exchange rates via API
+    // Load current exchange rates via API to USD
     const requests = Array.from(uniqueCurrencies).map(currency => ({
       from: currency,
-      to: selectedPortfolio.currency
+      to: 'USD'
     }));
 
     if (requests.length === 0) return;
@@ -132,7 +133,7 @@ export default function Home() {
 
   // Form states
   const [newPortfolioName, setNewPortfolioName] = useState('');
-  const [newPortfolioCurrency, setNewPortfolioCurrency] = useState<'USD' | 'CAD' | 'INR'>('USD');
+  const [newPortfolioCurrency, setNewPortfolioCurrency] = useState<Portfolio['currency']>('USD');
   const [newStockSymbol, setNewStockSymbol] = useState('');
   const [newStockShares, setNewStockShares] = useState('');
   const [newStockPrice, setNewStockPrice] = useState('');
@@ -140,6 +141,7 @@ export default function Home() {
   const [transactionType, setTransactionType] = useState<'buy' | 'sell'>('buy');
   const [newStockMarket, setNewStockMarket] = useState<'US' | 'CA' | 'IN'>('US');
   const [selectedStock, setSelectedStock] = useState<{symbol: string, name: string, market: 'US' | 'CA' | 'IN'} | null>(null);
+  const [newTransactionCurrency, setNewTransactionCurrency] = useState<Transaction['currency']>('USD');
 
   useEffect(() => {
     // Check for existing auth token on page load
@@ -156,6 +158,7 @@ export default function Home() {
       loadStockPrices();
       loadExchangeRates();
       calculateXIRR();
+      setNewTransactionCurrency(selectedPortfolio.currency);
     }
   }, [selectedPortfolio]);
 
@@ -301,6 +304,7 @@ export default function Home() {
           shares: parseFloat(newStockShares),
           price: parseFloat(newStockPrice),
           amount: parseFloat(newStockShares) * parseFloat(newStockPrice),
+          currency: newTransactionCurrency,
           date: new Date(newTransactionDate),
           market: newStockMarket,
         }),
@@ -333,6 +337,7 @@ export default function Home() {
     setNewTransactionDate(new Date(transaction.date).toISOString().split('T')[0]);
     setTransactionType(transaction.type);
     setNewStockMarket(transaction.market);
+    setNewTransactionCurrency(transaction.currency);
     setShowEditTransaction(true);
   };
 
@@ -353,6 +358,7 @@ export default function Home() {
           shares: parseFloat(newStockShares),
           price: parseFloat(newStockPrice),
           amount: parseFloat(newStockShares) * parseFloat(newStockPrice),
+          currency: newTransactionCurrency,
           date: new Date(newTransactionDate),
           market: newStockMarket,
         }),
@@ -404,6 +410,9 @@ export default function Home() {
     setTransactionType('buy');
     setSelectedStock(null);
     setNewStockMarket('US');
+    if (selectedPortfolio) {
+      setNewTransactionCurrency(selectedPortfolio.currency);
+    }
   };
 
   const calculatePortfolioValue = () => {
@@ -413,7 +422,7 @@ export default function Home() {
       const stockData = stockPrices[stock.symbol];
       if (stockData) {
         const value = stockData.price * stock.shares;
-        return total + convertCurrencySync(value, stockData.currency, selectedPortfolio.currency);
+        return total + convertCurrencySync(value, stockData.currency, 'USD');
       }
       return total;
     }, 0);
@@ -429,12 +438,12 @@ export default function Home() {
       const stockData = stockPrices[stock.symbol];
       if (stockData) {
         const currentValue = stockData.price * stock.shares;
-        const convertedCurrentValue = convertCurrencySync(currentValue, stockData.currency, selectedPortfolio.currency);
+        const convertedCurrentValue = convertCurrencySync(currentValue, stockData.currency, 'USD');
         
-        // Convert cost basis from stock currency to portfolio currency
-        const costInStockCurrency = stock.avgPrice * stock.shares;
-        const convertedCostValue = convertCurrencySync(costInStockCurrency, stockData.currency, selectedPortfolio.currency);
-        
+        // Cost basis is already in portfolio currency, but we need to convert to USD
+        const costInPortfolioCurrency = stock.avgPrice * stock.shares;
+        const convertedCostValue = convertCurrencySync(costInPortfolioCurrency, selectedPortfolio.currency, 'USD');
+
         totalCurrentValue += convertedCurrentValue;
         totalCost += convertedCostValue;
       }
@@ -447,8 +456,21 @@ export default function Home() {
   };
 
   const formatCurrency = (amount: number, currency: string) => {
-    const symbols = { USD: '$', CAD: 'C$', INR: '₹' };
-    return `${symbols[currency as keyof typeof symbols]}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const symbols: Record<string, string> = {
+      USD: '$',
+      CAD: 'C$',
+      INR: '₹',
+      EUR: '€',
+      GBP: '£',
+      JPY: '¥',
+      AUD: 'A$',
+      CHF: 'CHF',
+      CNY: '¥',
+      HKD: 'HK$',
+      NZD: 'NZ$',
+    };
+    const symbol = symbols[currency] || currency;
+    return `${symbol}${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   // Show login page if not authenticated
@@ -519,9 +541,9 @@ export default function Home() {
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Total Value</p>
+                    <p className="text-sm font-medium text-gray-600">Total Value (USD)</p>
                     <p className="text-2xl font-bold text-gray-900">
-                      {formatCurrency(portfolioValue, selectedPortfolio.currency)}
+                      {formatCurrency(portfolioValue, 'USD')}
                     </p>
                   </div>
                   <DollarSign className="w-8 h-8 text-blue-600" />
@@ -531,9 +553,9 @@ export default function Home() {
               <div className="bg-white rounded-lg shadow-sm p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm font-medium text-gray-600">Total Gain/Loss</p>
+                    <p className="text-sm font-medium text-gray-600">Total Gain/Loss (USD)</p>
                     <p className={`text-2xl font-bold ${gain >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {formatCurrency(gain, selectedPortfolio.currency)}
+                      {formatCurrency(gain, 'USD')}
                     </p>
                   </div>
                   {gain >= 0 ? (
@@ -619,14 +641,12 @@ export default function Home() {
                       const stockData = stockPrices[stock.symbol];
                       const marketValue = stockData ? stockData.price * stock.shares : 0;
                       const convertedMarketValue = stockData 
-                        ? convertCurrencySync(marketValue, stockData.currency, selectedPortfolio.currency)
+                        ? convertCurrencySync(marketValue, stockData.currency, 'USD')
                         : 0;
                       
-                      // Convert cost basis from stock currency to portfolio currency
-                      const costInStockCurrency = stock.avgPrice * stock.shares;
-                      const costValue = stockData 
-                        ? convertCurrencySync(costInStockCurrency, stockData.currency, selectedPortfolio.currency)
-                        : costInStockCurrency;
+                      // Cost basis is in portfolio currency, so convert to USD
+                      const costInPortfolioCurrency = stock.avgPrice * stock.shares;
+                      const costValue = convertCurrencySync(costInPortfolioCurrency, selectedPortfolio.currency, 'USD');
                       
                       const gainLoss = convertedMarketValue - costValue;
                       const gainLossPercent = costValue > 0 ? (gainLoss / costValue) * 100 : 0;
@@ -656,9 +676,9 @@ export default function Home() {
                             {stockData ? (
                               <div>
                                 <div className="font-medium text-gray-900">{formatCurrency(stockData.price, stockData.currency)}</div>
-                                {stockData.currency !== selectedPortfolio.currency && (
+                                {stockData.currency !== 'USD' && (
                                   <div className="text-xs text-gray-600">
-                                    ≈ {formatCurrency(convertCurrencySync(stockData.price, stockData.currency, selectedPortfolio.currency), selectedPortfolio.currency)}
+                                    ≈ {formatCurrency(convertCurrencySync(stockData.price, stockData.currency, 'USD'), 'USD')}
                                   </div>
                                 )}
                                 <div className={`text-sm ${(stockData.changePercent || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -674,16 +694,16 @@ export default function Home() {
                           </td>
                           <td className="p-4">
                             <div className="font-medium text-gray-900">
-                              {formatCurrency(convertedMarketValue, selectedPortfolio.currency)}
+                              {formatCurrency(convertedMarketValue, 'USD')}
                             </div>
-                            {stockData && stockData.currency !== selectedPortfolio.currency && (
+                            {stockData && stockData.currency !== 'USD' && (
                               <div className="text-xs text-gray-600">
                                 {formatCurrency(marketValue, stockData.currency)} {stockData.currency}
                               </div>
                             )}
                           </td>
                           <td className={`p-4 ${gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            <div className="font-medium">{formatCurrency(gainLoss, selectedPortfolio.currency)}</div>
+                            <div className="font-medium">{formatCurrency(gainLoss, 'USD')}</div>
                             <div className="text-sm">
                               {gainLossPercent >= 0 ? '+' : ''}{gainLossPercent.toFixed(2)}%
                             </div>
@@ -829,12 +849,12 @@ export default function Home() {
                 </label>
                 <select
                   value={newPortfolioCurrency}
-                  onChange={(e) => setNewPortfolioCurrency(e.target.value as 'USD' | 'CAD' | 'INR')}
+                  onChange={(e) => setNewPortfolioCurrency(e.target.value as Portfolio['currency'])}
                   className="w-full border border-gray-300 rounded-md px-3 py-2"
                 >
-                  <option value="USD">USD - US Dollar</option>
-                  <option value="CAD">CAD - Canadian Dollar</option>
-                  <option value="INR">INR - Indian Rupee</option>
+                  {ExchangeRateService.getSupportedCurrencies().map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
                 </select>
               </div>
               <div className="flex gap-3">
@@ -972,22 +992,38 @@ export default function Home() {
                   required
                 />
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Price per Share ({selectedPortfolio?.currency})
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={newStockPrice}
-                  onChange={(e) => setNewStockPrice(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  required
-                />
-                <p className="text-xs text-gray-800 mt-1">
-                  Enter the actual {transactionType} price on {newTransactionDate}
-                </p>
+              <div className="mb-4 grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-2">
+                    Price per Share
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newStockPrice}
+                    onChange={(e) => setNewStockPrice(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-2">
+                    Currency
+                  </label>
+                  <select
+                    value={newTransactionCurrency}
+                    onChange={(e) => setNewTransactionCurrency(e.target.value as Transaction['currency'])}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    {ExchangeRateService.getSupportedCurrencies().map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
+              <p className="text-xs text-gray-800 mt-1 mb-4">
+                Enter the actual {transactionType} price on {newTransactionDate} in its original currency.
+              </p>
               <div className="mb-6 p-3 bg-gray-50 border border-gray-200 rounded-md">
                 <div className="text-sm font-medium text-gray-900">Transaction Summary</div>
                 <div className="text-sm text-gray-800 mt-1">
@@ -1104,18 +1140,34 @@ export default function Home() {
                   required
                 />
               </div>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Price per Share ({selectedPortfolio?.currency})
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={newStockPrice}
-                  onChange={(e) => setNewStockPrice(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2"
-                  required
-                />
+              <div className="mb-4 grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-2">
+                    Price per Share
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={newStockPrice}
+                    onChange={(e) => setNewStockPrice(e.target.value)}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-2">
+                    Currency
+                  </label>
+                  <select
+                    value={newTransactionCurrency}
+                    onChange={(e) => setNewTransactionCurrency(e.target.value as Transaction['currency'])}
+                    className="w-full border border-gray-300 rounded-md px-3 py-2"
+                  >
+                    {ExchangeRateService.getSupportedCurrencies().map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div className="mb-6 p-3 bg-gray-50 border border-gray-200 rounded-md">
                 <div className="text-sm font-medium text-gray-900">Transaction Summary</div>

@@ -49,7 +49,7 @@ export interface Portfolio {
   _id?: string;
   userId: string;
   name: string;
-  currency: 'USD' | 'CAD' | 'INR';
+  currency: 'USD' | 'CAD' | 'INR' | 'EUR' | 'GBP' | 'JPY' | 'AUD' | 'CHF' | 'CNY' | 'HKD' | 'NZD';
   stocks: {
     symbol: string;
     shares: number;
@@ -71,6 +71,7 @@ export interface Transaction {
   shares: number;
   price: number;
   amount: number;
+  currency: 'USD' | 'CAD' | 'INR' | 'EUR' | 'GBP' | 'JPY' | 'AUD' | 'CHF' | 'CNY' | 'HKD' | 'NZD';
   date: Date;
   market: 'US' | 'CA' | 'IN';
   createdAt: Date;
