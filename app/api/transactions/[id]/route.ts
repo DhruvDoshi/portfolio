@@ -32,7 +32,7 @@ export async function PUT(
     // Check if transaction exists and belongs to user
     const existingTransaction = await db.collection('transactions').findOne({
       _id: new ObjectId(transactionId),
-      userId: user.id
+      userId: user.userId || user.id || ''
     });
 
     if (!existingTransaction) {
@@ -87,7 +87,7 @@ export async function DELETE(
     // Check if transaction exists and belongs to user
     const transaction = await db.collection('transactions').findOne({
       _id: new ObjectId(transactionId),
-      userId: user.id
+      userId: user.userId || user.id || ''
     });
 
     if (!transaction) {

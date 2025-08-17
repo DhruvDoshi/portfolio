@@ -865,7 +865,7 @@ export default function Home() {
             <h2 className="text-xl font-semibold mb-4">Add Transaction</h2>
             <form onSubmit={addTransaction}>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Transaction Type
                 </label>
                 <select
@@ -878,7 +878,7 @@ export default function Home() {
                 </select>
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Transaction Date
                 </label>
                 <input
@@ -888,12 +888,12 @@ export default function Home() {
                   className="w-full border border-gray-300 rounded-md px-3 py-2"
                   required
                 />
-                <p className="text-xs text-gray-600 mt-1">
+                <p className="text-xs text-gray-800 mt-1">
                   This date will be used for historical price lookup and XIRR calculations
                 </p>
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Stock Symbol
                 </label>
                 <StockAutocomplete
@@ -935,12 +935,12 @@ export default function Home() {
                     </div>
                   </div>
                 )}
-                <p className="text-xs text-gray-600 mt-2">
+                <p className="text-xs text-gray-800 mt-2">
                   Start typing to search for stocks across US, Canadian, and Indian markets
                 </p>
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Market
                 </label>
                 <select
@@ -954,13 +954,13 @@ export default function Home() {
                   <option value="IN">IN - India</option>
                 </select>
                 {selectedStock && (
-                  <p className="text-xs text-gray-600 mt-1">
+                  <p className="text-xs text-gray-800 mt-1">
                     Market automatically set based on selected stock
                   </p>
                 )}
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Number of Shares
                 </label>
                 <input
@@ -973,7 +973,7 @@ export default function Home() {
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Price per Share ({selectedPortfolio?.currency})
                 </label>
                 <input
@@ -984,13 +984,13 @@ export default function Home() {
                   className="w-full border border-gray-300 rounded-md px-3 py-2"
                   required
                 />
-                <p className="text-xs text-gray-600 mt-1">
+                <p className="text-xs text-gray-800 mt-1">
                   Enter the actual {transactionType} price on {newTransactionDate}
                 </p>
               </div>
               <div className="mb-6 p-3 bg-gray-50 border border-gray-200 rounded-md">
-                <div className="text-sm font-medium text-gray-700">Transaction Summary</div>
-                <div className="text-sm text-gray-600 mt-1">
+                <div className="text-sm font-medium text-gray-900">Transaction Summary</div>
+                <div className="text-sm text-gray-800 mt-1">
                   {transactionType === 'buy' ? 'Buy' : 'Sell'} {newStockShares || '0'} shares 
                   {newStockSymbol && ` of ${newStockSymbol.toUpperCase()}`}
                   {newStockPrice && newStockShares && (
@@ -1041,7 +1041,7 @@ export default function Home() {
             <h2 className="text-xl font-semibold mb-4">Edit Transaction</h2>
             <form onSubmit={updateTransaction}>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Transaction Type
                 </label>
                 <select
@@ -1054,7 +1054,7 @@ export default function Home() {
                 </select>
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Transaction Date
                 </label>
                 <input
@@ -1066,7 +1066,7 @@ export default function Home() {
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Stock Symbol
                 </label>
                 <input
@@ -1078,7 +1078,7 @@ export default function Home() {
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Market
                 </label>
                 <select
@@ -1092,7 +1092,7 @@ export default function Home() {
                 </select>
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Number of Shares
                 </label>
                 <input
@@ -1105,7 +1105,7 @@ export default function Home() {
                 />
               </div>
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Price per Share ({selectedPortfolio?.currency})
                 </label>
                 <input
@@ -1118,8 +1118,8 @@ export default function Home() {
                 />
               </div>
               <div className="mb-6 p-3 bg-gray-50 border border-gray-200 rounded-md">
-                <div className="text-sm font-medium text-gray-700">Transaction Summary</div>
-                <div className="text-sm text-gray-600 mt-1">
+                <div className="text-sm font-medium text-gray-900">Transaction Summary</div>
+                <div className="text-sm text-gray-800 mt-1">
                   {transactionType === 'buy' ? 'Buy' : 'Sell'} {newStockShares || '0'} shares 
                   {newStockSymbol && ` of ${newStockSymbol.toUpperCase()}`}
                   {newStockPrice && newStockShares && (

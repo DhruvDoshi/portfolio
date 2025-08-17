@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const transactions = await db.collection<Transaction>('transactions')
       .find({ 
         portfolioId,
-        userId: user.id 
+        userId: user.userId || user.id || '' 
       })
       .sort({ date: -1 })
       .toArray();
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     const db = await getDb();
     const portfolio = await db.collection('portfolios').findOne({ 
       _id: new ObjectId(portfolioId),
-      userId: user.id 
+      userId: user.userId || user.id || '' 
     });
 
     if (!portfolio) {
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     // Create transaction
     const transaction: Omit<Transaction, '_id'> = {
       portfolioId,
-      userId: user.id,
+      userId: user.userId || user.id || '',
       stockSymbol: stockSymbol.toUpperCase(),
       type,
       shares: parseFloat(shares),
