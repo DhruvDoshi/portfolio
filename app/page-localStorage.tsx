@@ -25,6 +25,7 @@ interface Portfolio {
 }
 
 interface Transaction {
+  id: string;
   _id?: string;
   portfolioId: string;
   userId: string;
@@ -57,6 +58,9 @@ export default function Home() {
   const [showCreatePortfolio, setShowCreatePortfolio] = useState(false);
   const [showAddStock, setShowAddStock] = useState(false);
   const [portfolioXIRR, setPortfolioXIRR] = useState<number | null>(null);
+  const [portfolioValue, setPortfolioValue] = useState<number>(0);
+  const [totalGainLoss, setTotalGainLoss] = useState<{ gain: number; percentage: number }>({ gain: 0, percentage: 0 });
+  const [convertedStockValues, setConvertedStockValues] = useState<Record<string, number>>({});
 
   // Form states
   const [newPortfolioName, setNewPortfolioName] = useState('');
@@ -68,6 +72,26 @@ export default function Home() {
   const [transactionType, setTransactionType] = useState<'buy' | 'sell'>('buy');
   const [newStockMarket, setNewStockMarket] = useState<'US' | 'CA' | 'IN'>('US');
   const [selectedStock, setSelectedStock] = useState<{symbol: string, name: string, market: 'US' | 'CA' | 'IN'} | null>(null);
+
+  const updateCalculatedValues = async () => {
+    if (selectedPortfolio) {
+      const value = await calculatePortfolioValue();
+      const gainLoss = await calculateTotalGainLoss();
+      setPortfolioValue(value);
+      setTotalGainLoss(gainLoss);
+      
+      // Calculate converted stock values
+      const converted: Record<string, number> = {};
+      for (const stock of selectedPortfolio.stocks) {
+        const stockData = stockPrices[stock.symbol];
+        if (stockData) {
+          const marketValue = stockData.price * stock.shares;
+          converted[stock.symbol] = await StockService.convertCurrency(marketValue, stockData.currency, selectedPortfolio.currency);
+        }
+      }
+      setConvertedStockValues(converted);
+    }
+  };
 
   useEffect(() => {
     // Check for existing auth token on page load
@@ -83,8 +107,13 @@ export default function Home() {
     if (selectedPortfolio) {
       loadStockPrices();
       calculateXIRR();
+      updateCalculatedValues();
     }
   }, [selectedPortfolio]);
+
+  useEffect(() => {
+    updateCalculatedValues();
+  }, [stockPrices]);
 
   const handleLogin = (token: string, userData: User) => {
     setAuthToken(token);
@@ -115,12 +144,12 @@ export default function Home() {
 
   const loadPortfolios = async (token?: string) => {
     try {
-      const authToken = token || authToken;
-      if (!authToken) return;
+      const currentAuthToken = token || authToken;
+      if (!currentAuthToken) return;
 
       const response = await fetch('/api/portfolios', {
         headers: {
-          'Authorization': `Bearer ${authToken}`,
+          'Authorization': `Bearer ${currentAuthToken}`,
         },
       });
 
@@ -129,10 +158,20 @@ export default function Home() {
       }
 
       const data = await response.json();
-      setPortfolios(data.portfolios);
       
-      if (data.portfolios.length > 0 && !selectedPortfolio) {
-        setSelectedPortfolio(data.portfolios[0]);
+      // Ensure all transactions have an id field
+      const portfoliosWithIds = data.portfolios.map((portfolio: Portfolio) => ({
+        ...portfolio,
+        transactions: portfolio.transactions.map((transaction: Transaction) => ({
+          ...transaction,
+          id: transaction.id || transaction._id || Date.now().toString() + Math.random(),
+        })),
+      }));
+      
+      setPortfolios(portfoliosWithIds);
+      
+      if (portfoliosWithIds.length > 0 && !selectedPortfolio) {
+        setSelectedPortfolio(portfoliosWithIds[0]);
       }
     } catch (error) {
       console.error('Error loading portfolios:', error);
@@ -229,36 +268,38 @@ export default function Home() {
     }
   };
 
-  const calculatePortfolioValue = () => {
+  const calculatePortfolioValue = async () => {
     if (!selectedPortfolio) return 0;
     
-    return selectedPortfolio.stocks.reduce((total, stock) => {
+    let total = 0;
+    for (const stock of selectedPortfolio.stocks) {
       const stockData = stockPrices[stock.symbol];
       if (stockData) {
         const value = stockData.price * stock.shares;
-        return total + StockService.convertCurrency(value, stockData.currency, selectedPortfolio.currency);
+        const convertedValue = await StockService.convertCurrency(value, stockData.currency, selectedPortfolio.currency);
+        total += convertedValue;
       }
-      return total;
-    }, 0);
+    }
+    return total;
   };
 
-  const calculateTotalGainLoss = () => {
+  const calculateTotalGainLoss = async () => {
     if (!selectedPortfolio) return { gain: 0, percentage: 0 };
     
     let totalCurrentValue = 0;
     let totalCost = 0;
     
-    selectedPortfolio.stocks.forEach(stock => {
+    for (const stock of selectedPortfolio.stocks) {
       const stockData = stockPrices[stock.symbol];
       if (stockData) {
         const currentValue = stockData.price * stock.shares;
-        const convertedCurrentValue = StockService.convertCurrency(currentValue, stockData.currency, selectedPortfolio.currency);
+        const convertedCurrentValue = await StockService.convertCurrency(currentValue, stockData.currency, selectedPortfolio.currency);
         const costValue = stock.avgPrice * stock.shares;
         
         totalCurrentValue += convertedCurrentValue;
         totalCost += costValue;
       }
-    });
+    }
     
     const gain = totalCurrentValue - totalCost;
     const percentage = totalCost > 0 ? (gain / totalCost) * 100 : 0;
@@ -276,8 +317,7 @@ export default function Home() {
     return <AuthPage onLogin={handleLogin} />;
   }
 
-  const portfolioValue = calculatePortfolioValue();
-  const { gain, percentage } = calculateTotalGainLoss();
+  const { gain, percentage } = totalGainLoss;
 
   return (
     <div className="min-h-screen bg-gray-50 p-4">
@@ -438,9 +478,7 @@ export default function Home() {
                     {selectedPortfolio.stocks.map((stock, index) => {
                       const stockData = stockPrices[stock.symbol];
                       const marketValue = stockData ? stockData.price * stock.shares : 0;
-                      const convertedMarketValue = stockData 
-                        ? StockService.convertCurrency(marketValue, stockData.currency, selectedPortfolio.currency)
-                        : 0;
+                      const convertedMarketValue = convertedStockValues[stock.symbol] || 0;
                       const costValue = stock.avgPrice * stock.shares;
                       const gainLoss = convertedMarketValue - costValue;
                       const gainLossPercent = costValue > 0 ? (gainLoss / costValue) * 100 : 0;
