@@ -664,9 +664,9 @@ export default function Home() {
                         ? convertCurrencySync(marketValue, stockData.currency, 'USD')
                         : 0;
                       
-                      // Cost basis is in portfolio currency, so convert to USD
-                      const costInPortfolioCurrency = stock.avgPrice * stock.shares;
-                      const costValue = convertCurrencySync(costInPortfolioCurrency, selectedPortfolio.currency, 'USD');
+                      // Cost basis is in the stock's original currency, so convert to USD
+                      const costInStockCurrency = stock.avgPrice * stock.shares;
+                      const costValue = convertCurrencySync(costInStockCurrency, stock.currency, 'USD');
                       
                       const gainLoss = convertedMarketValue - costValue;
                       const gainLossPercent = costValue > 0 ? (gainLoss / costValue) * 100 : 0;
