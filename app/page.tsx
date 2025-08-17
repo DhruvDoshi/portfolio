@@ -6,6 +6,7 @@ import { StockData, StockService } from '../lib/stockService';
 import { XIRRCalculator } from '../lib/xirrCalculator';
 import StockAutocomplete from '../components/StockAutocomplete';
 import AuthPage from '../components/AuthPage';
+import { ExchangeRateService } from '../lib/exchangeRateService';
 
 // Updated interfaces for MongoDB
 interface Portfolio {
@@ -1043,7 +1044,7 @@ export default function Home() {
                   {newStockSymbol && ` of ${newStockSymbol.toUpperCase()}`}
                   {newStockPrice && newStockShares && (
                     <span className="font-medium">
-                      {' '}for {formatCurrency(parseFloat(newStockPrice) * parseFloat(newStockShares), selectedPortfolio?.currency || 'USD')}
+                      {' '}for a total of {formatCurrency(parseFloat(newStockPrice) * parseFloat(newStockShares), newTransactionCurrency)}
                     </span>
                   )}
                   {newTransactionDate && ` on ${new Date(newTransactionDate).toLocaleDateString()}`}
@@ -1188,7 +1189,7 @@ export default function Home() {
                   {newStockSymbol && ` of ${newStockSymbol.toUpperCase()}`}
                   {newStockPrice && newStockShares && (
                     <span className="font-medium">
-                      {' '}for {formatCurrency(parseFloat(newStockPrice) * parseFloat(newStockShares), selectedPortfolio?.currency || 'USD')}
+                      {' '}for a total of {formatCurrency(parseFloat(newStockPrice) * parseFloat(newStockShares), newTransactionCurrency)}
                     </span>
                   )}
                   {newTransactionDate && ` on ${new Date(newTransactionDate).toLocaleDateString()}`}
