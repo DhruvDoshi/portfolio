@@ -121,11 +121,13 @@ export default function Home() {
   };
 
   const convertCurrencySync = (amount: number, fromCurrency: string, toCurrency: string): number => {
+    console.log(`Converting ${amount} from ${fromCurrency} to ${toCurrency}`);
     if (fromCurrency === toCurrency) return amount;
     
     const rateKey = `${fromCurrency}_${toCurrency}`;
     const rate = currencyRates[rateKey];
     
+    console.log(`Rate for ${rateKey}: ${rate}`);
     if (rate) {
       return amount * rate;
     }
@@ -137,7 +139,9 @@ export default function Home() {
       'INR': { 'USD': 0.012, 'CAD': 0.016 }
     };
     
-    return amount * (fallbackRates[fromCurrency]?.[toCurrency] || 1);
+    const fallbackRate = fallbackRates[fromCurrency]?.[toCurrency] || 1;
+    console.log(`Using fallback rate for ${rateKey}: ${fallbackRate}`);
+    return amount * fallbackRate;
   };
 
   // Transaction management states
