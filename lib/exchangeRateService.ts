@@ -20,6 +20,10 @@ export class ExchangeRateService {
    * Get current exchange rate between two currencies
    */
   static async getCurrentRate(fromCurrency: string, toCurrency: string): Promise<number> {
+    if (!fromCurrency || !toCurrency) {
+        console.error("getCurrentRate called with undefined currency", { fromCurrency, toCurrency });
+        return 1;
+    }
     if (fromCurrency === toCurrency) return 1;
 
     const cacheKey = `${fromCurrency}_${toCurrency}_current`;
@@ -57,6 +61,10 @@ export class ExchangeRateService {
    * Get historical exchange rate for a specific date
    */
   static async getHistoricalRate(fromCurrency: string, toCurrency: string, date: Date): Promise<number> {
+    if (!fromCurrency || !toCurrency) {
+        console.error("getHistoricalRate called with undefined currency", { fromCurrency, toCurrency });
+        return 1;
+    }
     if (fromCurrency === toCurrency) return 1;
 
     const today = new Date();

@@ -64,23 +64,34 @@ export default function Home() {
   
   const loadExchangeRates = async () => {
     if (!selectedPortfolio) return;
-    
+
     const rates: Record<string, number> = {};
     const uniqueCurrencies = new Set<string>();
-    
-    // Collect all currencies we need to convert
+
+    // Collect all unique currencies from stocks and transactions
     selectedPortfolio.stocks.forEach(stock => {
       const stockData = stockPrices[stock.symbol];
-      if (stockData && stockData.currency !== selectedPortfolio.currency) {
+      if (stockData) {
         uniqueCurrencies.add(stockData.currency);
       }
     });
-    
-    // Load current exchange rates via API to USD
-    const requests = Array.from(uniqueCurrencies).map(currency => ({
-      from: currency,
-      to: 'USD'
-    }));
+    selectedPortfolio.transactions.forEach(transaction => {
+      uniqueCurrencies.add(transaction.currency);
+    });
+
+    const requests = [];
+    // Fetch rates against USD
+    for (const currency of uniqueCurrencies) {
+      if (currency !== 'USD') {
+        requests.push({ from: currency, to: 'USD' });
+      }
+    }
+    // Fetch rates against portfolio currency
+    for (const currency of uniqueCurrencies) {
+      if (currency !== selectedPortfolio.currency) {
+        requests.push({ from: currency, to: selectedPortfolio.currency });
+      }
+    }
 
     if (requests.length === 0) return;
 
@@ -603,6 +614,7 @@ export default function Home() {
                     <button
                       onClick={() => {
                         loadStockPrices();
+                        loadExchangeRates();
                         calculateXIRR();
                       }}
                       disabled={loading}
