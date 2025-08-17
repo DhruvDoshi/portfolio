@@ -62,39 +62,44 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const results = await Promise.all(
-      requests.map(async (req: any) => {
-        try {
-          const { from, to, date } = req;
-          
-          if (!from || !to) {
-            return { error: 'Missing from or to currency', request: req };
-          }
+    // Group requests by fromCurrency and date
+    const groupedRequests = requests.reduce((acc, req) => {
+      const { from, to, date } = req;
+      if (!from || !to) return acc;
+      const key = `${from}_${date || 'current'}`;
+      if (!acc[key]) {
+        acc[key] = { from, to: new Set(), date };
+      }
+      acc[key].to.add(to);
+      return acc;
+    }, {} as Record<string, { from: string; to: Set<string>; date?: string }>);
 
-          let rate: number;
-          
-          if (date) {
-            const targetDate = new Date(date);
-            if (isNaN(targetDate.getTime())) {
-              return { error: 'Invalid date format', request: req };
-            }
-            rate = await ExchangeRateService.getHistoricalRate(from, to, targetDate);
-          } else {
-            rate = await ExchangeRateService.getCurrentRate(from, to);
-          }
+    const results: any[] = [];
 
-          return {
-            from,
-            to,
-            rate,
-            date: date || new Date().toISOString().split('T')[0],
-            success: true
-          };
-        } catch (error) {
-          return { error: 'Failed to fetch rate', request: req };
+    for (const key in groupedRequests) {
+      const { from, to, date } = groupedRequests[key];
+      const toCurrencies = Array.from(to);
+      try {
+        if (date) {
+          const targetDate = new Date(date);
+          if (isNaN(targetDate.getTime())) {
+            results.push(...toCurrencies.map(tc => ({ from, to: tc, error: 'Invalid date format' })));
+            continue;
+          }
+          const rates = await ExchangeRateService.getHistoricalRates(from, toCurrencies, targetDate);
+          for (const tc of toCurrencies) {
+            results.push({ from, to: tc, rate: rates[tc], date, success: !!rates[tc] });
+          }
+        } else {
+          const rates = await ExchangeRateService.getCurrentRates(from, toCurrencies);
+          for (const tc of toCurrencies) {
+            results.push({ from, to: tc, rate: rates[tc], date: new Date().toISOString().split('T')[0], success: !!rates[tc] });
+          }
         }
-      })
-    );
+      } catch (error) {
+        results.push(...toCurrencies.map(tc => ({ from, to: tc, error: 'Failed to fetch rate' })));
+      }
+    }
 
     return NextResponse.json({ results });
 

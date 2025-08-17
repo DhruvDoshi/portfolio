@@ -33,28 +33,8 @@ export class ExchangeRateService {
       return cached.rate;
     }
 
-    try {
-      let rate = await this.fetchFromFreeCurrencyApi(fromCurrency, toCurrency);
-
-      if (!rate) {
-        console.warn(`Failed to fetch exchange rate for ${fromCurrency} to ${toCurrency}, using fallback`);
-        return this.getFallbackRate(fromCurrency, toCurrency);
-      }
-
-      // Cache the result
-      this.cache.set(cacheKey, {
-        from: fromCurrency,
-        to: toCurrency,
-        rate,
-        date: new Date().toISOString().split('T')[0],
-        timestamp: Date.now()
-      });
-
-      return rate;
-    } catch (error) {
-      console.error('Error fetching exchange rate:', error);
-      return this.getFallbackRate(fromCurrency, toCurrency);
-    }
+    const rates = await this.getCurrentRates(fromCurrency, [toCurrency]);
+    return rates[toCurrency] || this.getFallbackRate(fromCurrency, toCurrency);
   }
 
   /**
@@ -81,28 +61,8 @@ export class ExchangeRateService {
       return cached.rate;
     }
 
-    try {
-      let rate = await this.fetchHistoricalFromFreeCurrencyApi(fromCurrency, toCurrency, dateStr);
-
-      if (!rate) {
-        console.warn(`Failed to fetch historical rate for ${fromCurrency} to ${toCurrency} on ${dateStr}, using current rate`);
-        return await this.getCurrentRate(fromCurrency, toCurrency);
-      }
-
-      // Cache the result (historical rates don't expire)
-      this.cache.set(cacheKey, {
-        from: fromCurrency,
-        to: toCurrency,
-        rate,
-        date: dateStr,
-        timestamp: Date.now()
-      });
-
-      return rate;
-    } catch (error) {
-      console.error('Error fetching historical exchange rate:', error);
-      return await this.getCurrentRate(fromCurrency, toCurrency);
-    }
+    const rates = await this.getHistoricalRates(fromCurrency, [toCurrency], date);
+    return rates[toCurrency] || await this.getCurrentRate(fromCurrency, toCurrency);
   }
 
   /**
@@ -123,38 +83,104 @@ export class ExchangeRateService {
 
   // API Implementations
 
-  private static async fetchFromFreeCurrencyApi(from: string, to: string): Promise<number | null> {
+  static async getCurrentRates(fromCurrency: string, toCurrencies: string[]): Promise<Record<string, number>> {
+    const rates: Record<string, number> = {};
+    const currenciesToFetch = toCurrencies.filter(to => {
+      const cacheKey = `${fromCurrency}_${to}_current`;
+      const cached = this.cache.get(cacheKey);
+      if (cached && (Date.now() - cached.timestamp) < this.cacheExpiry) {
+        rates[to] = cached.rate;
+        return false;
+      }
+      return true;
+    });
+
+    if (currenciesToFetch.length > 0) {
+      const fetchedRates = await this.fetchFromFreeCurrencyApi(fromCurrency, currenciesToFetch);
+      if (fetchedRates) {
+        for (const to of currenciesToFetch) {
+          if (fetchedRates[to]) {
+            rates[to] = fetchedRates[to];
+            this.cache.set(`${fromCurrency}_${to}_current`, {
+              from: fromCurrency,
+              to,
+              rate: fetchedRates[to],
+              date: new Date().toISOString().split('T')[0],
+              timestamp: Date.now()
+            });
+          }
+        }
+      }
+    }
+    return rates;
+  }
+
+    static async getHistoricalRates(fromCurrency: string, toCurrencies: string[], date: Date): Promise<Record<string, number>> {
+        const rates: Record<string, number> = {};
+        const dateStr = date.toISOString().split('T')[0];
+
+        const currenciesToFetch = toCurrencies.filter(to => {
+            const cacheKey = `${fromCurrency}_${to}_${dateStr}`;
+            const cached = this.cache.get(cacheKey);
+            if (cached) {
+                rates[to] = cached.rate;
+                return false;
+            }
+            return true;
+        });
+
+        if (currenciesToFetch.length > 0) {
+            const fetchedRates = await this.fetchHistoricalFromFreeCurrencyApi(fromCurrency, currenciesToFetch, dateStr);
+            if (fetchedRates) {
+                for (const to of currenciesToFetch) {
+                    if (fetchedRates[to]) {
+                        rates[to] = fetchedRates[to];
+                        this.cache.set(`${fromCurrency}_${to}_${dateStr}`, {
+                            from: fromCurrency,
+                            to,
+                            rate: fetchedRates[to],
+                            date: dateStr,
+                            timestamp: Date.now()
+                        });
+                    }
+                }
+            }
+        }
+        return rates;
+    }
+
+  private static async fetchFromFreeCurrencyApi(from: string, to: string[]): Promise<Record<string, number> | null> {
     if (this.apiKey === 'YOUR_API_KEY') {
         console.error('FreeCurrencyAPI key is not set. Please add your API key to .env.local as FREECURRENCYAPI_KEY.');
         return null;
     }
     try {
-      const response = await fetch(`https://api.freecurrencyapi.com/v1/latest?apikey=${this.apiKey}&base_currency=${from}&currencies=${to}`);
+      const response = await fetch(`https://api.freecurrencyapi.com/v1/latest?apikey=${this.apiKey}&base_currency=${from}&currencies=${to.join(',')}`);
       if (!response.ok) {
         throw new Error(`FreeCurrencyAPI request failed with status ${response.status}`);
       }
       const data = await response.json();
-      return data.data[to] || null;
+      return data.data || null;
     } catch (error) {
       console.error('FreeCurrencyAPI error:', error);
       return null;
     }
   }
 
-  private static async fetchHistoricalFromFreeCurrencyApi(from: string, to: string, date: string): Promise<number | null> {
+  private static async fetchHistoricalFromFreeCurrencyApi(from: string, to: string[], date: string): Promise<Record<string, number> | null> {
       if (this.apiKey === 'YOUR_API_KEY') {
           console.error('FreeCurrencyAPI key is not set. Please add your API key to .env.local as FREECURRENCYAPI_KEY.');
           return null;
       }
     try {
-      const response = await fetch(`https://api.freecurrencyapi.com/v1/historical?apikey=${this.apiKey}&date=${date}&base_currency=${from}&currencies=${to}`);
+      const response = await fetch(`https://api.freecurrencyapi.com/v1/historical?apikey=${this.apiKey}&date=${date}&base_currency=${from}&currencies=${to.join(',')}`);
         if (!response.ok) {
             throw new Error(`FreeCurrencyAPI historical request failed with status ${response.status}`);
         }
       const data = await response.json();
         // The historical API returns data nested under the date key
         if (data.data && data.data[date]) {
-            return data.data[date][to] || null;
+            return data.data[date] || null;
         }
       return null;
     } catch (error) {
