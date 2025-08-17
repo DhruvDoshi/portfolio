@@ -194,10 +194,6 @@ export class StockService {
       // Pre-fetch all required historical exchange rates
       const requiredRates = new Map<string, Set<string>>();
       for (const t of portfolio.transactions) {
-        if (!t.currency) {
-          console.warn('Transaction with missing currency found:', t);
-          continue;
-        }
         const dateStr = new Date(t.date).toISOString().split('T')[0];
         if (!requiredRates.has(dateStr)) {
           requiredRates.set(dateStr, new Set<string>());
@@ -217,9 +213,6 @@ export class StockService {
 
       // Add all transactions as cash flows
       for (const transaction of portfolio.transactions) {
-        if (!transaction.currency) {
-          continue; // Skip transactions with no currency
-        }
         let amount = transaction.amount;
         const transactionDate = new Date(transaction.date);
 
