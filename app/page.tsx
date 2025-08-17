@@ -459,7 +459,9 @@ export default function Home() {
         
         // Cost basis is in the stock's currency, so convert to USD
         const costInStockCurrency = stock.avgPrice * stock.shares;
+        console.log(`Cost for ${stock.symbol}: ${costInStockCurrency} ${stock.currency}`);
         const convertedCostValue = convertCurrencySync(costInStockCurrency, stock.currency, 'USD');
+        console.log(`Converted cost for ${stock.symbol}: ${convertedCostValue} USD`);
 
         totalCurrentValue += convertedCurrentValue;
         totalCost += convertedCostValue;
