@@ -196,7 +196,7 @@ export default function Home() {
         }))
       };
       
-      const xirr = await StockService.calculatePortfolioXIRR(compatiblePortfolio);
+      const xirr = await StockService.calculatePortfolioXIRR(compatiblePortfolio, stockPrices);
       setPortfolioXIRR(xirr);
     } catch (error) {
       console.error('Error calculating XIRR:', error);
@@ -766,14 +766,14 @@ export default function Home() {
                         </td>
                         <td className="p-4 text-gray-900">{transaction.shares}</td>
                         <td className="p-4 text-gray-900">
-                          {formatCurrency(transaction.price, selectedPortfolio.currency)}
+                          {formatCurrency(transaction.price, transaction.currency)}
                         </td>
                         <td className="p-4">
                           <span className={`font-medium ${
                             transaction.type === 'buy' ? 'text-red-600' : 'text-green-600'
                           }`}>
                             {transaction.type === 'buy' ? '-' : '+'}
-                            {formatCurrency(transaction.amount, selectedPortfolio.currency)}
+                            {formatCurrency(transaction.amount, transaction.currency)}
                           </span>
                         </td>
                         <td className="p-4">

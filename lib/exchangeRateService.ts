@@ -59,6 +59,12 @@ export class ExchangeRateService {
   static async getHistoricalRate(fromCurrency: string, toCurrency: string, date: Date): Promise<number> {
     if (fromCurrency === toCurrency) return 1;
 
+    const today = new Date();
+    if (date > today) {
+      console.warn(`Requested historical rate for a future date (${date.toISOString()}). Falling back to current rate.`);
+      return this.getCurrentRate(fromCurrency, toCurrency);
+    }
+
     const dateStr = date.toISOString().split('T')[0];
     const cacheKey = `${fromCurrency}_${toCurrency}_${dateStr}`;
     const cached = this.cache.get(cacheKey);

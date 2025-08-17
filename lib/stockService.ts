@@ -167,69 +167,70 @@ export class StockService {
     return await ExchangeRateService.convertCurrencyHistorical(amount, fromCurrency, toCurrency, date);
   }
 
-  static async getPortfolioValue(portfolio: Portfolio): Promise<number> {
+  static async getPortfolioValue(portfolio: Portfolio, stockPrices: Record<string, StockData>): Promise<number> {
     let totalValue = 0;
-    
+
     for (const stock of portfolio.stocks) {
-      try {
-        const stockData = await this.getStockData(stock.symbol, stock.market);
+      const stockData = stockPrices[stock.symbol];
+      if (stockData) {
         const stockValue = stockData.price * stock.shares;
         const convertedValue = await this.convertCurrency(stockValue, stockData.currency, portfolio.currency);
         totalValue += convertedValue;
-      } catch (error) {
-        console.error(`Error calculating value for ${stock.symbol}:`, error);
       }
     }
-    
+
     return totalValue;
   }
 
-  static async calculatePortfolioXIRR(portfolio: Portfolio): Promise<number | null> {
+  static async calculatePortfolioXIRR(portfolio: Portfolio, stockPrices: Record<string, StockData>): Promise<number | null> {
     if (!portfolio.transactions || portfolio.transactions.length === 0) {
       return null;
     }
 
     try {
       // Get current portfolio value
-      const currentValue = await this.getPortfolioValue(portfolio);
-      
+      const currentValue = await this.getPortfolioValue(portfolio, stockPrices);
+
+      // Pre-fetch all required historical exchange rates
+      const requiredRates = new Map<string, Set<string>>();
+      for (const t of portfolio.transactions) {
+        const dateStr = new Date(t.date).toISOString().split('T')[0];
+        if (!requiredRates.has(dateStr)) {
+          requiredRates.set(dateStr, new Set<string>());
+        }
+        requiredRates.get(dateStr)!.add(`${t.currency}_${portfolio.currency}`);
+      }
+
+      for (const [dateStr, currencyPairs] of requiredRates.entries()) {
+        for (const pair of currencyPairs) {
+          const [from, to] = pair.split('_');
+          await ExchangeRateService.getHistoricalRate(from, to, new Date(dateStr));
+        }
+      }
+
       // Generate cash flows from transactions
       const cashFlows: CashFlow[] = [];
-      
+
       // Add all transactions as cash flows
       for (const transaction of portfolio.transactions) {
         let amount = transaction.amount;
         const transactionDate = new Date(transaction.date);
-        
-        // Get the actual stock data to determine the correct currency
-        try {
-          const stockData = await this.getStockData(transaction.stockSymbol, transaction.market);
-          // Convert from stock's currency to portfolio currency using historical rates
-          amount = await this.convertCurrencyHistorical(amount, stockData.currency, portfolio.currency, transactionDate);
-        } catch (error) {
-          console.error(`Error getting stock data for ${transaction.stockSymbol}:`, error);
-          // Fallback to market-based currency conversion with historical rates
-          let stockCurrency = 'USD';
-          if (transaction.market === 'CA') {
-            stockCurrency = 'CAD';
-          } else if (transaction.market === 'IN') {
-            stockCurrency = 'INR';
-          }
-          amount = await this.convertCurrencyHistorical(amount, stockCurrency, portfolio.currency, transactionDate);
-        }
-        
+
+        // Convert from transaction's currency to portfolio currency using historical rates
+        amount = await this.convertCurrencyHistorical(amount, transaction.currency, portfolio.currency, transactionDate);
+
         cashFlows.push({
           date: transactionDate,
           amount: transaction.type === 'buy' ? -amount : amount
         });
       }
-      
+
       // Add current value as final cash flow
       cashFlows.push({
         date: new Date(),
         amount: currentValue
       });
-      
+
       return XIRRCalculator.calculateXIRR(cashFlows);
     } catch (error) {
       console.error('Error calculating XIRR:', error);
