@@ -19,6 +19,7 @@ interface Portfolio {
     shares: number;
     avgPrice: number;
     market: 'US' | 'CA' | 'IN';
+    currency: string;
   }[];
   transactions: Transaction[];
   createdAt: Date;
@@ -452,9 +453,9 @@ export default function Home() {
         const currentValue = stockData.price * stock.shares;
         const convertedCurrentValue = convertCurrencySync(currentValue, stockData.currency, 'USD');
         
-        // Cost basis is already in portfolio currency, but we need to convert to USD
-        const costInPortfolioCurrency = stock.avgPrice * stock.shares;
-        const convertedCostValue = convertCurrencySync(costInPortfolioCurrency, selectedPortfolio.currency, 'USD');
+        // Cost basis is in the stock's currency, so convert to USD
+        const costInStockCurrency = stock.avgPrice * stock.shares;
+        const convertedCostValue = convertCurrencySync(costInStockCurrency, stock.currency, 'USD');
 
         totalCurrentValue += convertedCurrentValue;
         totalCost += convertedCostValue;
@@ -683,7 +684,7 @@ export default function Home() {
                           </td>
                           <td className="p-4 text-gray-900">{stock.shares}</td>
                           <td className="p-4 text-gray-900">
-                            {formatCurrency(stock.avgPrice, selectedPortfolio.currency)}
+                            {formatCurrency(stock.avgPrice, stock.currency)}
                           </td>
                           <td className="p-4 text-gray-900">
                             {stockData ? (

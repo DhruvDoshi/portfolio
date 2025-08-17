@@ -96,17 +96,6 @@ async function updatePortfolioStocks(db: any, portfolioId: string, transaction: 
   const portfolio = await db.collection('portfolios').findOne({ _id: new ObjectId(portfolioId) });
   if (!portfolio) return;
 
-  // Convert transaction amount to portfolio's base currency for consistent avgPrice calculation
-  let transactionAmountInPortfolioCurrency = transaction.amount;
-  if (transaction.currency !== portfolio.currency) {
-    transactionAmountInPortfolioCurrency = await ExchangeRateService.convertCurrencyHistorical(
-      transaction.amount,
-      transaction.currency,
-      portfolio.currency,
-      transaction.date
-    );
-  }
-
   const stocks = portfolio.stocks || [];
   const stockIndex = stocks.findIndex(
     (s: any) => s.symbol === transaction.stockSymbol && s.market === transaction.market
@@ -116,8 +105,14 @@ async function updatePortfolioStocks(db: any, portfolioId: string, transaction: 
     if (stockIndex >= 0) {
       // Update existing stock with weighted average
       const existingStock = stocks[stockIndex];
+      const transactionAmountInStockCurrency = await ExchangeRateService.convertCurrencyHistorical(
+        transaction.amount,
+        transaction.currency,
+        existingStock.currency,
+        transaction.date
+      );
       const totalShares = existingStock.shares + transaction.shares;
-      const totalValue = (existingStock.shares * existingStock.avgPrice) + transactionAmountInPortfolioCurrency;
+      const totalValue = (existingStock.shares * existingStock.avgPrice) + transactionAmountInStockCurrency;
 
       stocks[stockIndex] = {
         ...existingStock,
@@ -126,12 +121,12 @@ async function updatePortfolioStocks(db: any, portfolioId: string, transaction: 
       };
     } else {
       // Add new stock
-      const priceInPortfolioCurrency = transactionAmountInPortfolioCurrency / transaction.shares;
       stocks.push({
         symbol: transaction.stockSymbol,
         shares: transaction.shares,
-        avgPrice: priceInPortfolioCurrency,
-        market: transaction.market
+        avgPrice: transaction.price,
+        market: transaction.market,
+        currency: transaction.currency,
       });
     }
   } else if (transaction.type === 'sell' && stockIndex >= 0) {

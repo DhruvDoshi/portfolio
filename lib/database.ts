@@ -55,6 +55,7 @@ export interface Portfolio {
     shares: number;
     avgPrice: number;
     market: 'US' | 'CA' | 'IN';
+    currency: string;
   }[];
   transactions: Transaction[];
   createdAt: Date;
